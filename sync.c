@@ -161,7 +161,7 @@ void deadlock_check(void)
             deadlocked[deadlocked_count++] = i;
         }
     }
-    printf("DEADLOCK t=%d pids:", long(now)); //print deadlocked processes
+    printf("DEADLOCK t=%ld pids:", (long)now); //print deadlocked processes
     for (int i = 0; i < deadlocked_count; i++) {
         printf(" %d", deadlocked[i]);
     
