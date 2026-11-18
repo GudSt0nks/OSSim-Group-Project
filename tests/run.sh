@@ -56,8 +56,20 @@ for s in sjf srtf prio mlfq; do
     check "Producer/consumer completes under $s" \
           "$BIN workloads/producer_consumer.txt --sched $s --quantum 2 --no-paging" "finished=2/2"
 done
-# TODO: add hand-computed avg_waiting / avg_response for every scheduler on
-# workloads/arrivals.txt (and show the Gantt chart in your design note).
+
+# Hand-computed checks on workloads/arrivals.txt
+check "Arrivals FCFS avg_waiting=14.83" \
+      "$BIN workloads/arrivals.txt --sched fcfs --no-paging" "avg_waiting=14.83"
+check "Arrivals RR q=2 avg_waiting=18.33" \
+      "$BIN workloads/arrivals.txt --sched rr --quantum 2 --no-paging" "avg_waiting=18.33"
+check "Arrivals SJF avg_waiting=10.00" \
+      "$BIN workloads/arrivals.txt --sched sjf --no-paging" "avg_waiting=10.00"
+check "Arrivals SRTF avg_waiting=9.83" \
+      "$BIN workloads/arrivals.txt --sched srtf --no-paging" "avg_waiting=9.83"
+check "Arrivals PRIO avg_waiting=12.67" \
+      "$BIN workloads/arrivals.txt --sched prio --quantum 2 --no-paging" "avg_waiting=12.67"
+check "Arrivals MLFQ q=2 avg_waiting=16.17" \
+      "$BIN workloads/arrivals.txt --sched mlfq --quantum 2 --no-paging" "avg_waiting=16.17"
 
 # --- checkpoint 2 ----------------------------------------------------------
 check "Paging: LRU, 3 frames -> 12 faults (textbook Sec. 10.4.4)" \

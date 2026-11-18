@@ -126,48 +126,76 @@ void res_release(pcb_t *p, resource_t *r, int n)
  * only report it and let --max-ticks end the run. If you only report, print
  * each deadlock once. workloads/deadlock.txt must be detected.
  */
+static bool deadlock_reported = false;
+
 void deadlock_check(void)
 {
     bool finish[MAX_PROCS + 1] = { false };
     int work[MAX_RES];
     for (int i = 0; i < nres; i++) {
-        work[i] = resources[i].available; //work = available to each resource
+        work[i] = resources[i].available; // work = available of each resource
+    }
+
+    /* Initialize finish vector according to Sec 8.6.2:
+     * If Allocation_i == 0, finish[i] = true; otherwise finish[i] = false.
+     * Also mark processes that don't exist, are terminated, or new as finished.
+     */
+    for (int i = 1; i <= MAX_PROCS; i++) {
+        pcb_t *p = proc_by_pid(i);
+        if (!p || p->state == P_TERMINATED || p->state == P_NEW) {
+            finish[i] = true;
+            continue;
+        }
+        bool has_alloc = false;
+        for (int j = 0; j < nres; j++) {
+            if (resources[j].allocated[i] > 0) {
+                has_alloc = true;
+                break;
+            }
+        }
+        if (!has_alloc) {
+            finish[i] = true;
+        }
     }
 
     bool progress = true;
     while (progress) {
         progress = false;
         for (int i = 1; i <= MAX_PROCS; i++) {
-            if (finish[i]) continue; //skip finished processes
+            if (finish[i]) continue; // skip finished processes
             bool fits = true;
             for (int j = 0; j < nres; j++) {
-                if (resources[j].requested[i] > work[j]) {fits = false; break;} //if request > work, cannot finish
+                if (resources[j].requested[i] > work[j]) {
+                    fits = false;
+                    break;
+                }
             }
             if (fits) {
-                finish[i] = true; //mark process as finished
+                finish[i] = true; // mark process as finished
                 progress = true;
                 for (int j = 0; j < nres; j++) {
-                    work[j] += resources[j].allocated[i]; //release allocated resources
+                    work[j] += resources[j].allocated[i]; // release allocated resources
                 }
             }
         }
     }
 
-    //collect deadlocked processes
+    // Collect deadlocked processes: those that are blocked and finish[i] == false
     int deadlocked[MAX_PROCS + 1];
     int deadlocked_count = 0;
     for (int i = 1; i <= MAX_PROCS; i++) {
-        if (!finish[i]) {
+        pcb_t *p = proc_by_pid(i);
+        if (p && !finish[i] && p->state == P_WAITING) {
             deadlocked[deadlocked_count++] = i;
         }
     }
-    printf("DEADLOCK t=%ld pids:", (long)now); //print deadlocked processes
-    for (int i = 0; i < deadlocked_count; i++) {
-        printf(" %d", deadlocked[i]);
-    
+
+    if (deadlocked_count > 0 && !deadlock_reported) {
+        printf("DEADLOCK t=%ld pids:", (long)now); // print deadlocked processes
+        for (int i = 0; i < deadlocked_count; i++) {
+            printf(" %d", deadlocked[i]);
+        }
+        printf("\n");
+        deadlock_reported = true;
     }
-    for (int i = 0; i < deadlocked_count; i++) {
-        kernel_abort(proc_by_pid(deadlocked[i])); //abort deadlocked processes
-    }
-    printf("\n");
-}   
+}

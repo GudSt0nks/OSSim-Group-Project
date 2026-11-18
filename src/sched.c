@@ -135,20 +135,21 @@ static const int MAX_LEVEL = 3;
 static int mlfq_tick = 0;
 static int get_level(const pcb_t *p) { return p->level; }
 
-static void   mlfq_init(void)            { q_init(&mlfq_q); }
+static void   mlfq_init(void)            { q_init(&mlfq_q); mlfq_tick = 0; }
 static void   mlfq_enqueue(pcb_t *p)     { q_push(&mlfq_q, p); }
 static pcb_t *mlfq_pick(void)            { return q_pop_min(&mlfq_q, get_level); }
-static void   mlfq_on_dispatch(pcb_t *p) { p->quantum_used = 0; p->level = 0; }
+static void   mlfq_on_dispatch(pcb_t *p) { p->quantum_used = 0; }
 
 static void mlfq_on_tick(pcb_t *r) {
     r->quantum_used++;
     mlfq_tick++;
-    if(mlfq_tick >= 20){
-        for(int i = 0; i < q_size(&mlfq_q); i++){
+    if (mlfq_tick >= 20) {
+        for (int i = 0; i < q_size(&mlfq_q); i++) {
             pcb_t *temp = q_pop(&mlfq_q);
             temp->level = 0;
             q_push(&mlfq_q, temp);
         }
+        if (r) r->level = 0;
         mlfq_tick = 0;
     }
 }
@@ -157,10 +158,11 @@ static int mlfq_ready_count(void) { return q_size(&mlfq_q); }
 
 static bool mlfq_should_preempt(pcb_t *r)
 {
-    if (r->quantum_used >= cfg.quantum) {
+    int q_limit = cfg.quantum * (1 << r->level);
+    if (r->quantum_used >= q_limit) {
         r->quantum_used = 0;
-        r->level = (r->level < MAX_LEVEL-1) ? r->level + 1 : MAX_LEVEL-1;
-        return q_size(&mlfq_q) != 0;
+        if (r->level < MAX_LEVEL - 1) r->level++;
+        return !q_empty(&mlfq_q);
     }
 
     return q_min_key(&mlfq_q, get_level) < r->level;
